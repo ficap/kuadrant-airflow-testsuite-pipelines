@@ -1,6 +1,7 @@
 """
 Runs kuadrant testsuite container as a kubernetes pod
 """
+import kubernetes.client as k8s
 
 from datetime import datetime
 
@@ -66,6 +67,7 @@ def dag_run_testsuite():
 
     testsuite_image_env = prepare_args().map(dict_to_V1EnvVar_list)
     secrets = [Secret("env", None, secret="airflow-kubeapi-creds")]
+    resources = k8s.V1ResourceRequirements(limits={"cpu": "100m", "memory": "100Mi"})
 
     KubernetesPodOperator.partial(
         name="kuadrant-testsuite",
@@ -76,6 +78,7 @@ def dag_run_testsuite():
             '--insecure-skip-tls-verify=true && make ${MAKE_TARGET}'
         ],
         secrets=secrets,
+        container_resources=resources,
         image_pull_policy="Always",
         task_id="run-testsuite",
         on_finish_action="delete_pod",
