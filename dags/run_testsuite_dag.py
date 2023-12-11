@@ -67,7 +67,7 @@ def dag_run_testsuite():
 
     testsuite_image_env = prepare_args().map(dict_to_V1EnvVar_list)
     secrets = [Secret("env", None, secret="airflow-kubeapi-creds")]
-    resources = k8s.V1ResourceRequirements(limits={"cpu": "100m", "memory": "100Mi"})
+    resources = k8s.V1ResourceRequirements(limits={"cpu": "200m", "memory": "256Mi"})
 
     KubernetesPodOperator.partial(
         name="kuadrant-testsuite",
