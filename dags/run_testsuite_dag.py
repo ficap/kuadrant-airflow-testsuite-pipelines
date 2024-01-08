@@ -53,6 +53,7 @@ def dag_run_testsuite():
     def prepare_args(**context):
         from utils.utils import dot_to_dynaconf_env
         params = context["params"]
+        run_id = context["dag_run"].run_id
 
         env_vars = {"TARGET_KUBE_API": params["kube_api"]}
 
@@ -63,10 +64,13 @@ def dag_run_testsuite():
         env_vars.update(dynaconf_env)
         env_vars["MAKE_TARGET"] = params["make_target"]
 
+        env_vars["junit"] = "true"  # generate a junit report file
+        env_vars["RP_LAUNCH_NAME"] = run_id
+
         return [env_vars]
 
     testsuite_image_env = prepare_args().map(dict_to_V1EnvVar_list)
-    secrets = [Secret("env", None, secret="airflow-kubeapi-creds")]
+    secrets = [Secret("env", None, secret="airflow-kubeapi-creds"), Secret("env", None, secret="reportportal-creds")]
     resources = k8s.V1ResourceRequirements(limits={"cpu": "200m", "memory": "256Mi"})
 
     KubernetesPodOperator.partial(
@@ -75,7 +79,7 @@ def dag_run_testsuite():
         cmds=["/bin/bash", "-c"],
         arguments=[
             'oc login "${TARGET_KUBE_API}" --username "${KUBE_USER}" --password "${KUBE_PASSWORD}" '
-            '--insecure-skip-tls-verify=true && make ${MAKE_TARGET}'
+            '--insecure-skip-tls-verify=true && make ${MAKE_TARGET} || make reportportal'
         ],
         secrets=secrets,
         container_resources=resources,
