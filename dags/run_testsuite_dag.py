@@ -1,8 +1,6 @@
 """
 Runs kuadrant testsuite container as a kubernetes pod
 """
-import kubernetes.client as k8s
-
 from datetime import datetime
 
 from airflow.decorators import task, dag
@@ -46,6 +44,8 @@ params = {
     catchup=False,
 )
 def dag_run_testsuite():
+    import kubernetes.client as k8s
+
     from airflow.providers.cncf.kubernetes.secret import Secret
     from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 
@@ -66,12 +66,30 @@ def dag_run_testsuite():
 
         env_vars["junit"] = "true"  # generate a junit report file
         env_vars["RP_LAUNCH_NAME"] = run_id
+        # make reportportal uses python requests which does not use system ca bundle; we force it to use the system one
+        env_vars["REQUESTS_CA_BUNDLE"] = "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
 
         return [env_vars]
 
     testsuite_image_env = prepare_args().map(dict_to_V1EnvVar_list)
     secrets = [Secret("env", None, secret="airflow-kubeapi-creds"), Secret("env", None, secret="reportportal-creds")]
     resources = k8s.V1ResourceRequirements(limits={"cpu": "200m", "memory": "256Mi"})
+    volumes = [
+        k8s.V1Volume(
+            name="testsuite-cabundle",
+            config_map=k8s.V1ConfigMapVolumeSource(
+                name="testsuite-cabundle",
+                items=[k8s.V1KeyToPath(key="ca-bundle.crt", path="tls-ca-bundle.pem")],
+            ),
+        )
+    ]
+    volume_mounts = [
+        k8s.V1VolumeMount(
+            name="testsuite-cabundle",
+            mount_path="/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+            sub_path="tls-ca-bundle.pem",
+        )
+    ]
 
     KubernetesPodOperator.partial(
         name="kuadrant-testsuite",
@@ -83,6 +101,8 @@ def dag_run_testsuite():
         ],
         secrets=secrets,
         container_resources=resources,
+        volumes=volumes,
+        volume_mounts=volume_mounts,
         image_pull_policy="Always",
         task_id="run-testsuite",
         on_finish_action="delete_pod",
