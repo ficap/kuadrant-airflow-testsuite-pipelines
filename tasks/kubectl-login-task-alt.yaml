@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: kubectl-login-alt
+spec:
+  params:
+  - description: API URL of the Openshift cluster
+    name: kube-api
+    type: string
+  steps:
+  - args:
+    - export OAUTH_URL=$(echo $(params.kube-api) | sed -e 's/api/oauth-openshift.apps/'
+      -e 's/\(.*\):.*/\1/')/oauth/authorize && export TOKEN=$(curl -XPOST -kis --data
+      response_type=token --data client_id=openshift-challenging-client -u ${KUBE_USER}:${KUBE_PASSWORD}
+      ${OAUTH_URL} | grep "Location:" | sed 's/.*access_token=\([^&]*\).*/\1/') &&
+      kubectl config set-cluster ctx --server $(params.kube-api) --insecure-skip-tls-verify=true
+      && kubectl config set-credentials user --token=${TOKEN} && kubectl config set-context
+      ctx --user=user --cluster=ctx && kubectl config use-context ctx
+    command:
+    - /bin/bash
+    - -cveo
+    - pipefail
+    computeResources:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+    env:
+    - name: KUBECONFIG
+      value: $(workspaces.shared-workspace.path)/kubeconfig
+    - name: WORKSPACE
+      value: $(workspaces.shared-workspace.path)
+    - name: KUBE_USER
+      valueFrom:
+        secretKeyRef:
+          key: KUBE_USER
+          name: openshift-pipelines-credentials
+    - name: KUBE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          key: KUBE_PASSWORD
+          name: openshift-pipelines-credentials
+    image: quay.io/rh_integration/ci-toolbox:latest
+    imagePullPolicy: IfNotPresent
+    name: kubectl-login
+  workspaces:
+  - name: shared-workspace

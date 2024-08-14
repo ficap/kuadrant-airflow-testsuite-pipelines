@@ -1,0 +1,68 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: kuadrant-deploy-pipeline
+spec:
+  params:
+  - description: API URL of the Openshift cluster
+    name: kube-api
+    type: string
+    default: https://kubernetes.default:443 
+  - description: Index image to use for deployment; if omitted uses community-operators
+    name: kuadrant-index-image
+    type: string
+    default: ""
+  - description: OLM channel to use for deployment
+    name: kuadrant-channel
+    type: string
+    default: stable
+  tasks:
+  - name: clone
+    taskRef:
+      kind: Task
+      name: clone
+    workspaces:
+    - name: shared-workspace
+      workspace: shared-workspace
+  - name: kubectl-login
+    params:
+    - name: kube-api
+      value: $(params.kube-api)
+    runAfter:
+    - clone
+    taskRef:
+      kind: Task
+      name: kubectl-login-alt
+    workspaces:
+    - name: shared-workspace
+      workspace: shared-workspace
+  - name: helm
+    params:
+    - name: kuadrant-index-image
+      value: $(params.kuadrant-index-image)
+    - name: kuadrant-channel
+      value: $(params.kuadrant-channel)
+    runAfter:
+    - kubectl-login
+    taskRef:
+      kind: Task
+      name: helm
+    workspaces:
+    - name: shared-workspace
+      workspace: shared-workspace
+  - name: helm-operands
+    params:
+    - name: kuadrant-index-image
+      value: $(params.kuadrant-index-image)
+    - name: kuadrant-channel
+      value: $(params.kuadrant-channel)
+    runAfter:
+    - helm
+    taskRef:
+      kind: Task
+      name: helm-operands
+    workspaces:
+    - name: shared-workspace
+      workspace: shared-workspace
+  workspaces:
+  - name: shared-workspace

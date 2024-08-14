@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: helm
+spec:
+  params:
+  - description: Index image of kuadrant to use
+    name: kuadrant-index-image
+    type: string
+  - description: olm channel to use
+    name: kuadrant-channel
+    type: string
+  steps:
+  - args:
+    - install
+    - $(workspaces.shared-workspace.path)/kuadrant-env-installation/operators
+    - --values
+    - $(workspaces.shared-workspace.path)/kuadrant-env-installation/operators/values.yaml
+    - --values
+    - /mount/values-additional-manifests/values-additionalManifests.yaml
+    - --generate-name
+    - --wait
+    - --set
+    - kuadrant.indexImage=$(params.kuadrant-index-image)
+    - --set
+    - kuadrant.channel=$(params.kuadrant-channel)
+    command:
+    - /usr/local/bin/helm
+    computeResources:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+    env:
+    - name: KUBECONFIG
+      value: $(workspaces.shared-workspace.path)/kubeconfig
+    image: quay.io/rh_integration/ci-toolbox:latest
+    imagePullPolicy: IfNotPresent
+    name: helm
+    volumeMounts:
+    - mountPath: /mount/values-additional-manifests
+      name: values-additional-manifests
+  volumes:
+  - secret:
+      secretName: values-additional-manifests
+    name: values-additional-manifests
+  workspaces:
+  - name: shared-workspace

@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: clone
+spec:
+  steps:
+  - args:
+    - clone
+    - -b
+    - operators-operands-olm
+    - https://github.com/ficap/kuadrant-env-installation.git
+    - $(workspaces.shared-workspace.path)/kuadrant-env-installation
+    command:
+    - git
+    computeResources:
+      limits:
+        cpu: 250m
+        memory: 128Mi
+    image: quay.io/rh_integration/ci-toolbox:latest
+    imagePullPolicy: IfNotPresent
+    name: clone
+  workspaces:
+  - name: shared-workspace
